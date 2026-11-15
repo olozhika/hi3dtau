@@ -45,14 +45,14 @@ def main(argv=None):
 
     with HI3D(data_dir=args.data_dir) as model:
         cols = model.columns(args.l, args.b, args.d)
-        frac = model.p(args.l, args.b, args.d)
+        frac = model.p_3d(args.l, args.b, args.d)
         split = model.background_split(args.l, args.b, args.d, args.radius)
         result = {
             "l_deg": args.l,
             "b_deg": args.b,
             "distance_kpc": args.d,
-            "p": frac["p_mean"],
-            "p_std": frac["p_std"],
+            "p_3d": frac["p_3d_mean"],
+            "p_3d_std": frac["p_3d_std"],
             "N_foreground": cols["N_foreground_mean"],
             "N_foreground_std": cols["N_foreground_std"],
             "N_background": cols["N_background_mean"],
@@ -68,10 +68,13 @@ def main(argv=None):
         }
         if args.v is not None:
             t = model.tau(args.l, args.b, args.d, args.v, T_spin=args.spin)
+            pv = model.p_v(args.l, args.b, args.d, args.v, T_spin=args.spin)
             result.update(
                 {
                     "velocity_kms": args.v,
                     "T_spin": args.spin,
+                    "p_v": pv["p_v_mean"],
+                    "p_v_std": pv["p_v_std"],
                     "tau_foreground": t["tau_foreground_mean"],
                     "tau_foreground_std": t["tau_foreground_std"],
                     "tau_background": t["tau_background_mean"],
@@ -84,7 +87,7 @@ def main(argv=None):
         return 0
 
     print(f"l = {args.l:.3f} deg, b = {args.b:.3f} deg, D = {args.d:.3f} kpc")
-    print(f"p (background fraction) = {result['p']:.3f} +/- {result['p_std']:.3f}")
+    print(f"p_3d (background fraction) = {result['p_3d']:.3f} +/- {result['p_3d_std']:.3f}")
     print(
         f"N_HI = {result['N_total']:.3e} +/- {result['N_total_std']:.1e} cm^-2 "
         f"(foreground {result['N_foreground']:.2e}, "
@@ -95,6 +98,9 @@ def main(argv=None):
         f"{100 * result[f'fraction_background_beyond_{args.radius:g}kpc']:.0f}%"
     )
     if args.v is not None:
+        print(
+            f"p_v(v={args.v:g} km/s) = {result['p_v']:.3f} +/- {result['p_v_std']:.3f}"
+        )
         print(
             f"tau(v={args.v:g} km/s, T_spin={args.spin:g} K) = "
             f"{result['tau_foreground']:.3f} +/- {result['tau_foreground_std']:.3f} "

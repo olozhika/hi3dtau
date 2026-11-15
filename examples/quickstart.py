@@ -17,8 +17,11 @@ import hi3dtau  # noqa: E402
 L, B, D = 120.0, 30.0, 1.0  # deg, deg, kpc
 V = 0.0                     # km/s, line-centre velocity
 
-res = hi3dtau.p(L, B, D)
-print(f"p = {res['p_mean']:.3f} +/- {res['p_std']:.3f}")
+res = hi3dtau.p_3d(L, B, D)
+print(f"p_3d = {res['p_3d_mean']:.3f} +/- {res['p_3d_std']:.3f}")
+
+pv = hi3dtau.p_v(L, B, D, velocity_kms=V, T_spin=200.0)
+print(f"p_v   = {pv['p_v_mean']:.3f} +/- {pv['p_v_std']:.3f}  (at v={V:g} km/s)")
 
 cols = hi3dtau.columns(L, B, D)
 print(f"N_fg = {cols['N_foreground_mean']:.3e} cm^-2")

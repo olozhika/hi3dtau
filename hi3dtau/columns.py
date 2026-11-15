@@ -48,15 +48,17 @@ def columns(n_los, grid, distance_kpc):
     }
 
 
-def background_fraction(n_los, grid, distance_kpc):
-    """Fraction of the line-of-sight HI column lying behind ``distance_kpc``.
+def p_3d(n_los, grid, distance_kpc):
+    """Fraction of the total line-of-sight HI column behind ``distance_kpc``.
 
-    Replaces the Li & Goldsmith (2003) smooth-disk erfc estimate and its
-    empirical 0.7 floor with the column ratio of the 3D reconstruction.
+    Velocity-independent: every radial bin contributes regardless of its
+    line-of-sight velocity. Replaces the Li & Goldsmith (2003) smooth-disk
+    erfc estimate and its empirical 0.7 floor with the column ratio of the
+    3D reconstruction.
 
-    ``p_mean`` is the ratio of the mean columns, so that
-    ``p_mean * N_total_mean == N_background_mean``; ``p_std`` is the scatter
-    of the per-sample ratios.
+    ``p_3d_mean`` is the ratio of the mean columns, so that
+    ``p_3d_mean * N_total_mean == N_background_mean``; ``p_3d_std`` is the
+    scatter of the per-sample ratios.
     """
     front, behind = grid.split(distance_kpc)
     n_fg = (n_los * front[:, None]).sum(axis=0)
@@ -67,10 +69,55 @@ def background_fraction(n_los, grid, distance_kpc):
     _, p_std = _summarise(p)
     p_mean = np.mean(n_bg) / np.mean(n_tot)
     return {
-        "p": p,
-        "p_mean": float(p_mean),
-        "p_std": float(p_std),
+        "p_3d": p,
+        "p_3d_mean": float(p_mean),
+        "p_3d_std": float(p_std),
         "distance_kpc": float(distance_kpc),
+    }
+
+
+def p_v(n_los, sigma_los, v_los, grid, distance_kpc, velocity_kms, T_spin=200.0):
+    """Fraction of the 21 cm optical depth at ``velocity_kms`` behind the cloud.
+
+    Velocity-resolved counterpart of :func:`p_3d`: each radial bin is weighted
+    by its Gaussian line profile overlap with ``velocity_kms``, then split
+    front/back at ``distance_kpc``. In the optically thin limit this is the
+    fraction of the line emission at that velocity available as a background.
+
+    ``p_v_mean`` is the ratio of the mean foreground/background optical depths;
+    ``p_v_std`` is the scatter of the per-sample ratios. ``tau_*`` are the
+    per-sample optical depths.
+    """
+    from .tau import tau as _tau
+    from .tau import summarise as _summarise_tau
+
+    front, behind = grid.split(distance_kpc)
+    tau_fg = _tau(n_los, sigma_los, v_los, front, velocity_kms, T_spin=T_spin)
+    tau_bg = _tau(n_los, sigma_los, v_los, behind, velocity_kms, T_spin=T_spin)
+    tau_tot = tau_fg + tau_bg
+    fg_mean, fg_std = _summarise_tau(tau_fg)
+    bg_mean, bg_std = _summarise_tau(tau_bg)
+    tot_mean, tot_std = _summarise_tau(tau_tot)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        p = np.where(tau_tot > 0, tau_bg / tau_tot, np.nan)
+    _, p_std = _summarise(p)
+    p_mean = np.mean(tau_bg) / np.mean(tau_tot)
+    return {
+        "p_v": p,
+        "p_v_mean": float(p_mean),
+        "p_v_std": float(p_std),
+        "tau_foreground": tau_fg,
+        "tau_background": tau_bg,
+        "tau_total": tau_tot,
+        "tau_foreground_mean": float(fg_mean),
+        "tau_foreground_std": float(fg_std),
+        "tau_background_mean": float(bg_mean),
+        "tau_background_std": float(bg_std),
+        "tau_total_mean": float(tot_mean),
+        "tau_total_std": float(tot_std),
+        "distance_kpc": float(distance_kpc),
+        "velocity_kms": float(velocity_kms),
+        "T_spin": float(T_spin),
     }
 
 

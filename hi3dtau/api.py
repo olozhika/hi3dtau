@@ -9,9 +9,10 @@ from astropy.io import fits
 
 from . import data as _data
 from .columns import (
-    background_fraction,
     background_split_at,
     columns as _columns,
+    p_3d as _p_3d,
+    p_v as _p_v,
 )
 from .grid import RadialGrid, ang2pix, los_density, unit_vector
 from .tau import brightness_temperature, summarise, tau as _tau
@@ -120,11 +121,23 @@ class HI3D:
     def columns(self, l_deg, b_deg, distance_kpc):
         return _columns(self.density(l_deg, b_deg), self.grid, distance_kpc)
 
+    def p_3d(self, l_deg, b_deg, distance_kpc):
+        """Fraction of the total HI column behind the cloud (velocity-agnostic)."""
+        return _p_3d(self.density(l_deg, b_deg), self.grid, distance_kpc)
+
+    def p_v(self, l_deg, b_deg, distance_kpc, velocity_kms, T_spin=200.0):
+        """Fraction of the 21 cm optical depth at ``velocity_kms`` behind the cloud."""
+        self._load_auxiliary()
+        ipix = self._pixel(l_deg, b_deg)
+        n = self.density(l_deg, b_deg)
+        v_los = self._vlos(ipix, l_deg, b_deg)
+        sigma = np.asarray(self._sig_hi.data[ipix], dtype=float)
+        return _p_v(n, sigma, v_los, self.grid, distance_kpc, velocity_kms,
+                    T_spin=T_spin)
+
     def p(self, l_deg, b_deg, distance_kpc):
-        """Fraction of the HI column behind the cloud (3D equivalent of p)."""
-        return background_fraction(
-            self.density(l_deg, b_deg), self.grid, distance_kpc
-        )
+        """Deprecated alias of :meth:`p_3d`. Will be removed."""
+        return self.p_3d(l_deg, b_deg, distance_kpc)
 
     def background_split(self, l_deg, b_deg, distance_kpc, radius_kpc=1.25):
         return background_split_at(
@@ -194,13 +207,16 @@ class HI3D:
         }
         cols = self.columns(l_deg, b_deg, distance_kpc)
         out.update({k: v for k, v in cols.items() if not np.ndim(v)})
-        out["p"] = self.p(l_deg, b_deg, distance_kpc)["p_mean"]
-        out["p_std"] = self.p(l_deg, b_deg, distance_kpc)["p_std"]
+        out["p_3d"] = self.p_3d(l_deg, b_deg, distance_kpc)["p_3d_mean"]
+        out["p_3d_std"] = self.p_3d(l_deg, b_deg, distance_kpc)["p_3d_std"]
         split = self.background_split(l_deg, b_deg, distance_kpc)
         out.update({k: v for k, v in split.items() if not np.ndim(v)})
         if velocity_kms is not None:
             t = self.tau(l_deg, b_deg, distance_kpc, velocity_kms, T_spin=T_spin)
             out.update({k: v for k, v in t.items() if not np.ndim(v)})
+            pv = self.p_v(l_deg, b_deg, distance_kpc, velocity_kms, T_spin=T_spin)
+            out["p_v"] = pv["p_v_mean"]
+            out["p_v_std"] = pv["p_v_std"]
         return out
 
 
@@ -214,8 +230,18 @@ def get(data_dir=None) -> HI3D:
     return _default[key]
 
 
+def p_3d(l_deg, b_deg, distance_kpc, data_dir=None):
+    return get(data_dir).p_3d(l_deg, b_deg, distance_kpc)
+
+
+def p_v(l_deg, b_deg, distance_kpc, velocity_kms, T_spin=200.0, data_dir=None):
+    return get(data_dir).p_v(l_deg, b_deg, distance_kpc, velocity_kms,
+                             T_spin=T_spin)
+
+
 def p(l_deg, b_deg, distance_kpc, data_dir=None):
-    return get(data_dir).p(l_deg, b_deg, distance_kpc)
+    """Deprecated alias of :func:`p_3d`. Will be removed."""
+    return get(data_dir).p_3d(l_deg, b_deg, distance_kpc)
 
 
 def columns(l_deg, b_deg, distance_kpc, data_dir=None):
